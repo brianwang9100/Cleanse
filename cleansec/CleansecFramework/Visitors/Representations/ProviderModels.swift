@@ -19,6 +19,12 @@ public struct StandardProvider: Equatable, Codable {
     }
 }
 
+public extension StandardProvider {
+    var shortHandDescription: String {
+        "type: \(type), num_dependencies: \(dependencies.count), tag: \(tag ?? "none"), scoped: \(scoped ?? "none"), collectionType: \(collectionType ?? "none")"
+    }
+}
+
 /// Partial provider presentation with known dependencies, but isn't bound into object graph yet.
 /// In Cleanse this is usually a provider implementation created as a function.
 public struct DanglingProvider: Equatable, Codable {

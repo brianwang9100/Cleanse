@@ -30,6 +30,9 @@ struct CLI: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Emits a readable format of each root compoment")
     var emitComponents: Bool
     
+    @Option(name: .long, default: nil, parsing: .next, help: "Output path for emitting parsed providers")
+    var parsedProvidersOutputPath: String?
+    
     var moduleRepresentationFilename: String {
         "\(moduleName).cleansecmodule.json"
     }
@@ -76,18 +79,41 @@ struct CLI: ParsableCommand {
         let containsRoot = moduleRepresentation.files.flatMap { $0.components }.contains { $0.isRoot }
         guard containsRoot else {
             return
-        } 
+        }
         let availableModules = moduleSearchPathFiles
             .filter { !$0.absoluteString.hasSuffix(moduleRepresentationFilename) }
             .filter { $0.absoluteString.hasSuffix("cleansecmodule.json") }
         let loadedModules = try availableModules
             .map { try Data(contentsOf: $0) }
             .map { try JSONDecoder().decode(ModuleRepresentation.self, from: $0) }
+        if let parsedProvidersOutputPath {
+            let parsedProvidersLogString = loadedModules
+                .flatMap { $0.files }
+                .flatMap { file -> [ProviderAndModuleName] in
+                    let providerAndModuleNames: [ProviderAndModuleName] = file.modules.flatMap { module in
+                        module.providers.map { (provider: $0, moduleName: module.type) }
+                    }
+                    let providerAndComponentNames: [ProviderAndModuleName] = file.components.flatMap { component in
+                        component.providers.map { (provider: $0, moduleName: component.type) }
+                    }
+                    return providerAndModuleNames + providerAndComponentNames
+                }
+                .sorted { $0.provider.dependencies.count < $1.provider.dependencies.count }
+                .map { "module_name: \($0.moduleName), \($0.provider.shortHandDescription)" }
+                .reduce("") { "\($0)\n\($1)" }
+            let parsedProvidersOutputPathUrl = URL(fileURLWithPath: parsedProvidersOutputPath).appendingPathComponent("\(moduleName)-parsed-providers").appendingPathExtension("log")
+            try FileManager.default.createDirectory(
+                atPath: parsedProvidersOutputPath,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            try parsedProvidersLogString.write(to: parsedProvidersOutputPathUrl, atomically: true, encoding: .utf8)
+        }
         let linkedInterface = Cleansec.link(modules: loadedModules + [moduleRepresentation])
-        let resolvedCompoments = Cleansec.resolve(interface: linkedInterface)
-        let errors = resolvedCompoments.flatMap { $0.diagnostics }
+        let resolvedComponents = Cleansec.resolve(interface: linkedInterface)
+        let errors = resolvedComponents.flatMap { $0.diagnostics }
         if emitComponents {
-            resolvedCompoments.forEach { (c) in
+            resolvedComponents.forEach { (c) in
                 print("------\n\(c)")
             }
         }
@@ -101,6 +127,8 @@ struct CLI: ParsableCommand {
         
     }
 }
+
+typealias ProviderAndModuleName = (provider: StandardProvider, moduleName: String)
 
 fileprivate extension ModuleRepresentation {
     // Removes all files with empty modules and components
