@@ -23,6 +23,18 @@ public extension StandardProvider {
     var shortHandDescription: String {
         "type: \(type), num_dependencies: \(dependencies.count), tag: \(tag ?? "none"), scoped: \(scoped ?? "none"), collectionType: \(collectionType ?? "none")"
     }
+    
+    // used to output spreadsheet
+    // have to use semi-colon because dependencies will be outputted as an array with commas
+    static var columnTitles: String {
+        "type; dependencies; num_dependencies; tag; scoped; collection_type"
+    }
+    
+    // used to output spreadsheet
+    // have to use semi-colon because dependencies will be outputted as an array with commas
+    var rowContent: String {
+        "\(type); \(dependencies.joined(separator: ",")); \(dependencies.count); \(tag ?? "none"); \(scoped ?? "none"); \(collectionType ?? "none")"
+    }
 }
 
 /// Partial provider presentation with known dependencies, but isn't bound into object graph yet.
